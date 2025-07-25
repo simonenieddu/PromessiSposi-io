@@ -21,14 +21,24 @@ export default function Dashboard() {
     enabled: !!user,
   });
 
+  const { data: userStats, isLoading: statsLoading } = useQuery({
+    queryKey: ['/api/users', user?.id, 'stats'],
+    enabled: !!user,
+  });
+
+  const { data: chapters } = useQuery({
+    queryKey: ['/api/chapters'],
+    enabled: !!user,
+  });
+
   if (!user) {
     navigate("/auth");
     return null;
   }
 
-  const completedChapters = Array.isArray(userProgress) ? userProgress.filter((p: any) => p.isCompleted).length : 1;
-  const totalChapters = 38;
-  const chaptersProgress = (completedChapters / totalChapters) * 100;
+  const completedChapters = userStats?.completed_chapters || 0;
+  const totalChapters = chapters?.length || 38;
+  const chaptersProgress = totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0;
 
   const recentActivity = [
     { type: "chapter", title: "Capitolo 1 completato", date: "Oggi", icon: "fas fa-book", color: "green" },
@@ -82,19 +92,19 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">{user.points || 420}</div>
+                    <div className="text-3xl font-bold">{userStats?.total_points || user.points || 0}</div>
                     <div className="text-sm text-blue-100 font-medium">Punti Edo</div>
                   </div>
                   <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">12</div>
+                    <div className="text-3xl font-bold">{userStats?.completed_quizzes || 0}</div>
                     <div className="text-sm text-green-100 font-medium">Quiz completati</div>
                   </div>
                   <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">7</div>
-                    <div className="text-sm text-purple-100 font-medium">Giorni consecutivi</div>
+                    <div className="text-3xl font-bold">{Math.floor(userStats?.days_since_joined || 1)}</div>
+                    <div className="text-sm text-purple-100 font-medium">Giorni di studio</div>
                   </div>
                   <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">3</div>
+                    <div className="text-3xl font-bold">{userAchievements?.length || 0}</div>
                     <div className="text-sm text-yellow-100 font-medium">Traguardi</div>
                   </div>
                 </div>
@@ -110,38 +120,41 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {chaptersData.slice(0, 5).map((chapter) => (
-                    <div key={chapter.id} className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
-                      <div className="flex items-center space-x-4">
-                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-lg ${
-                          chapter.id <= completedChapters 
-                            ? 'bg-gradient-to-br from-green-500 to-green-600' 
-                            : 'bg-gradient-to-br from-gray-400 to-gray-500'
-                        }`}>
-                          {chapter.id <= completedChapters ? (
-                            <i className="fas fa-check"></i>
-                          ) : (
-                            chapter.number
-                          )}
+                  {(chapters || chaptersData).slice(0, 5).map((chapter: any) => {
+                    const isCompleted = userProgress?.some((p: any) => p.chapter_id === chapter.id && p.is_completed);
+                    return (
+                      <div key={chapter.id} className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
+                        <div className="flex items-center space-x-4">
+                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white text-sm font-bold shadow-lg ${
+                            isCompleted 
+                              ? 'bg-gradient-to-br from-green-500 to-green-600' 
+                              : 'bg-gradient-to-br from-gray-400 to-gray-500'
+                          }`}>
+                            {isCompleted ? (
+                              <i className="fas fa-check"></i>
+                            ) : (
+                              chapter.number
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-bold text-lg text-gray-800">Capitolo {chapter.number}</div>
+                            <div className="text-sm text-gray-600 max-w-xs truncate">{chapter.title}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-lg text-gray-800">Capitolo {chapter.number}</div>
-                          <div className="text-sm text-gray-600 max-w-xs truncate">{chapter.title}</div>
-                        </div>
+                        <Button 
+                          size="sm" 
+                          variant={isCompleted ? "outline" : "default"}
+                          className={isCompleted 
+                            ? "border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white rounded-full px-6 font-semibold" 
+                            : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full px-6 font-semibold shadow-lg"
+                          }
+                          onClick={() => navigate(`/reading/${chapter.id}`)}
+                        >
+                          {isCompleted ? "Rivedi" : "Inizia"}
+                        </Button>
                       </div>
-                      <Button 
-                        size="sm" 
-                        variant={chapter.id <= completedChapters ? "outline" : "default"}
-                        className={chapter.id <= completedChapters 
-                          ? "border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white rounded-full px-6 font-semibold" 
-                          : "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-full px-6 font-semibold shadow-lg"
-                        }
-                        onClick={() => navigate(`/reading/${chapter.id}`)}
-                      >
-                        {chapter.id <= completedChapters ? "Rivedi" : "Inizia"}
-                      </Button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
@@ -184,17 +197,17 @@ export default function Dashboard() {
                 </CardTitle>
                 <div className="text-center">
                   <div className="text-4xl font-bold mb-2">
-                    {user.level || "Novizio"}
+                    {userStats?.current_level || user.level || "Novizio"}
                   </div>
                   <div className="text-sm text-yellow-100">
-                    {user.points || 420} / 500 punti per il prossimo livello
+                    {userStats?.total_points || user.points || 0} / 500 punti per il prossimo livello
                   </div>
                 </div>
               </div>
               <CardContent className="p-6">
-                <Progress value={((user.points || 420) / 500) * 100} className="h-4 bg-gray-200" />
+                <Progress value={((userStats?.total_points || user.points || 0) / 500) * 100} className="h-4 bg-gray-200" />
                 <p className="text-xs text-gray-600 mt-3 text-center font-medium">
-                  {500 - (user.points || 420)} punti al prossimo livello
+                  {500 - (userStats?.total_points || user.points || 0)} punti al prossimo livello
                 </p>
               </CardContent>
             </Card>

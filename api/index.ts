@@ -142,6 +142,57 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
+    // Get single chapter
+    if (req.url?.startsWith('/api/chapters/') && req.method === 'GET') {
+      const chapterId = req.url.split('/')[3];
+      
+      try {
+        const chapter = await sql`SELECT * FROM chapters WHERE id = ${chapterId}`;
+        if (chapter.length === 0) {
+          return res.status(404).json({ message: "Capitolo non trovato" });
+        }
+        return res.json(chapter[0]);
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore recupero capitolo" });
+      }
+    }
+
+    // Get chapter quizzes
+    if (req.url?.includes('/quizzes') && req.method === 'GET') {
+      const chapterId = req.url.split('/')[3];
+      
+      try {
+        const quizzes = await sql`SELECT * FROM quizzes WHERE chapter_id = ${chapterId} ORDER BY id`;
+        return res.json(quizzes);
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore recupero quiz" });
+      }
+    }
+
+    // Update reading progress
+    if (req.url?.includes('/progress') && req.method === 'POST') {
+      const { userId, chapterId, isCompleted, readingTime } = req.body || {};
+      
+      try {
+        await sql`
+          INSERT INTO user_progress (user_id, chapter_id, is_completed, reading_time, updated_at)
+          VALUES (${userId}, ${chapterId}, ${isCompleted}, ${readingTime}, NOW())
+          ON CONFLICT (user_id, chapter_id) 
+          DO UPDATE SET 
+            is_completed = ${isCompleted},
+            reading_time = ${readingTime},
+            updated_at = NOW()
+        `;
+        
+        return res.json({ message: "Progresso aggiornato" });
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore aggiornamento progresso" });
+      }
+    }
+
     // Get user progress
     if (req.url?.startsWith('/api/users/') && req.url.includes('/progress') && req.method === 'GET') {
       const urlParts = req.url.split('/');

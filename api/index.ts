@@ -179,7 +179,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       try {
         const progress = await sql`
-          SELECT chapter_id, is_completed, completed_at, quiz_score
+          SELECT chapter_id, is_completed, last_read_at as completed_at, reading_progress
           FROM user_progress 
           WHERE user_id = ${userId}
           ORDER BY chapter_id
@@ -198,10 +198,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       
       try {
         const achievements = await sql`
-          SELECT achievement_id, unlocked_at
+          SELECT achievement_id, earned_at as unlocked_at
           FROM user_achievements 
           WHERE user_id = ${userId}
-          ORDER BY unlocked_at DESC
+          ORDER BY earned_at DESC
         `;
         return res.json(achievements);
       } catch (dbError: any) {
@@ -216,18 +216,33 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const userId = urlParts[3];
       
       try {
-        const stats = await sql`
+        // Get user basic info
+        const user = await sql`SELECT points, level, created_at FROM users WHERE id = ${userId}`;
+        if (user.length === 0) {
+          return res.status(404).json({ message: "Utente non trovato" });
+        }
+        
+        // Get progress stats
+        const progressStats = await sql`
           SELECT 
-            (SELECT COUNT(*) FROM user_progress WHERE user_id = ${userId} AND is_completed = true) as completed_chapters,
-            (SELECT COUNT(*) FROM user_progress WHERE user_id = ${userId} AND quiz_score IS NOT NULL) as completed_quizzes,
-            (SELECT points FROM users WHERE id = ${userId}) as total_points,
-            (SELECT level FROM users WHERE id = ${userId}) as current_level,
-            (SELECT EXTRACT(days FROM (NOW() - created_at)) FROM users WHERE id = ${userId}) as days_since_joined
+            COUNT(CASE WHEN is_completed = true THEN 1 END) as completed_chapters,
+            COUNT(CASE WHEN reading_progress = 100 THEN 1 END) as completed_quizzes
+          FROM user_progress 
+          WHERE user_id = ${userId}
         `;
-        return res.json(stats[0]);
+        
+        const stats = {
+          total_points: user[0].points || 0,
+          current_level: user[0].level || 'Novizio',
+          completed_chapters: parseInt(progressStats[0].completed_chapters) || 0,
+          completed_quizzes: parseInt(progressStats[0].completed_quizzes) || 0,
+          days_since_joined: Math.floor((Date.now() - new Date(user[0].created_at).getTime()) / (1000 * 60 * 60 * 24))
+        };
+        
+        return res.json(stats);
       } catch (dbError: any) {
         console.error("Database error:", dbError);
-        return res.status(500).json({ message: "Errore recupero statistiche" });
+        return res.status(500).json({ message: "Errore recupero statistiche", error: dbError.message });
       }
     }
 

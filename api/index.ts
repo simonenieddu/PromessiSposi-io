@@ -1,6 +1,6 @@
 import { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
-import bcrypt from 'bcrypt';
+import { createHash } from 'crypto';
 
 const sql = neon(process.env.DATABASE_URL!);
 
@@ -57,8 +57,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           return res.status(400).json({ message: "Email già registrata" });
         }
 
-        // Hash password
-        const hashedPassword = await bcrypt.hash(password, 10);
+        // Hash password with crypto (native Node.js)
+        const hashedPassword = createHash('sha256').update(password + 'salt').digest('hex');
         
         // Create user
         const newUser = await sql`
@@ -105,7 +105,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = users[0];
 
         // Check password
-        const isValid = await bcrypt.compare(password, user.password);
+        const hashedInputPassword = createHash('sha256').update(password + 'salt').digest('hex');
+        const isValid = hashedInputPassword === user.password;
         if (!isValid) {
           return res.status(401).json({ message: "Credenziali non valide" });
         }

@@ -14,6 +14,7 @@ export const users = pgTable("users", {
   isEmailVerified: boolean("is_email_verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
   lastActiveAt: timestamp("last_active_at").defaultNow(),
+  role: varchar("role", { length: 20 }).default("student"),
 });
 
 export const chapters = pgTable("chapters", {

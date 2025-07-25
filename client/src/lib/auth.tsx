@@ -66,14 +66,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('promessisposi_user', JSON.stringify(data.user));
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('promessisposi_user');
-    // Optionally call logout endpoint
-    fetch('/api/auth/logout', {
-      method: 'POST',
-      credentials: 'include',
-    }).catch(console.error);
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setUser(null);
+      localStorage.removeItem('promessisposi_user');
+    }
   };
 
   return (

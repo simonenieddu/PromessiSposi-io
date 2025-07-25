@@ -29,13 +29,13 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={user ? Dashboard : Home} />
-      <Route path="/auth" component={Auth} />
-      <Route path="/reading/:chapterId?" component={Reading} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/teacher" component={TeacherDashboard} />
+      <Route path="/auth" component={user ? () => { window.location.href = "/dashboard"; return null; } : Auth} />
+      <Route path="/reading/:chapterId?" component={user ? Reading : () => { window.location.href = "/auth"; return null; }} />
+      <Route path="/dashboard" component={user ? Dashboard : () => { window.location.href = "/auth"; return null; }} />
+      <Route path="/teacher" component={user && user.role === 'teacher' ? TeacherDashboard : () => { window.location.href = "/dashboard"; return null; }} />
       <Route path="/admin" component={Admin} />
       <Route path="/admin/login" component={AdminLogin} />
-      <Route path="/ai-insights" component={AIInsightsPage} />
+      <Route path="/ai-insights" component={user ? AIInsightsPage : () => { window.location.href = "/auth"; return null; }} />
       <Route component={NotFound} />
     </Switch>
   );

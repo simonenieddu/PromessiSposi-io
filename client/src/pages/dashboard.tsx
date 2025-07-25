@@ -5,24 +5,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import Header from "@/components/header";
-import { chaptersData, achievementsData } from "@/data/chapters";
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
 
   const { data: userProgress, isLoading: progressLoading } = useQuery({
-    queryKey: ['/api/users', user?.id, 'progress'],
+    queryKey: [`/api/users/${user?.id}/progress`],
     enabled: !!user,
   });
 
   const { data: userAchievements, isLoading: achievementsLoading } = useQuery({
-    queryKey: ['/api/users', user?.id, 'achievements'],
+    queryKey: [`/api/users/${user?.id}/achievements`],
     enabled: !!user,
   });
 
   const { data: userStats, isLoading: statsLoading } = useQuery({
-    queryKey: ['/api/users', user?.id, 'stats'],
+    queryKey: [`/api/users/${user?.id}/stats`],
     enabled: !!user,
   });
 
@@ -36,8 +35,10 @@ export default function Dashboard() {
     return null;
   }
 
-  const completedChapters = userStats?.completed_chapters || 0;
-  const totalChapters = chapters?.length || 38;
+  const stats = userStats as any || {};
+  const chaptersList = chapters as any[] || [];
+  const completedChapters = stats.completed_chapters || 0;
+  const totalChapters = chaptersList.length || 38;
   const chaptersProgress = totalChapters > 0 ? (completedChapters / totalChapters) * 100 : 0;
 
   const recentActivity = [
@@ -92,19 +93,19 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                   <div className="bg-gradient-to-br from-blue-500 to-blue-600 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">{userStats?.total_points || user.points || 0}</div>
+                    <div className="text-3xl font-bold">{stats.total_points || user.points || 0}</div>
                     <div className="text-sm text-blue-100 font-medium">Punti Edo</div>
                   </div>
                   <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">{userStats?.completed_quizzes || 0}</div>
+                    <div className="text-3xl font-bold">{stats.completed_quizzes || 0}</div>
                     <div className="text-sm text-green-100 font-medium">Quiz completati</div>
                   </div>
                   <div className="bg-gradient-to-br from-purple-500 to-purple-600 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">{Math.floor(userStats?.days_since_joined || 1)}</div>
+                    <div className="text-3xl font-bold">{Math.floor(stats.days_since_joined || 1)}</div>
                     <div className="text-sm text-purple-100 font-medium">Giorni di studio</div>
                   </div>
                   <div className="bg-gradient-to-br from-yellow-400 to-orange-500 p-6 rounded-2xl text-center text-white shadow-lg floating-card">
-                    <div className="text-3xl font-bold">{userAchievements?.length || 0}</div>
+                    <div className="text-3xl font-bold">{(userAchievements as any[])?.length || 0}</div>
                     <div className="text-sm text-yellow-100 font-medium">Traguardi</div>
                   </div>
                 </div>
@@ -120,8 +121,9 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {(chapters || chaptersData).slice(0, 5).map((chapter: any) => {
-                    const isCompleted = userProgress?.some((p: any) => p.chapter_id === chapter.id && p.is_completed);
+                  {chaptersList.slice(0, 5).map((chapter: any) => {
+                    const progressArray = userProgress as any[] || [];
+                    const isCompleted = progressArray.some((p: any) => p.chapterId === chapter.id && p.isCompleted);
                     return (
                       <div key={chapter.id} className="flex items-center justify-between p-5 bg-gray-50 rounded-2xl hover:bg-gray-100 transition-colors">
                         <div className="flex items-center space-x-4">
@@ -197,17 +199,17 @@ export default function Dashboard() {
                 </CardTitle>
                 <div className="text-center">
                   <div className="text-4xl font-bold mb-2">
-                    {userStats?.current_level || user.level || "Novizio"}
+                    {stats.level || user.level || "Novizio"}
                   </div>
                   <div className="text-sm text-yellow-100">
-                    {userStats?.total_points || user.points || 0} / 500 punti per il prossimo livello
+                    {stats.total_points || user.points || 0} / 500 punti per il prossimo livello
                   </div>
                 </div>
               </div>
               <CardContent className="p-6">
-                <Progress value={((userStats?.total_points || user.points || 0) / 500) * 100} className="h-4 bg-gray-200" />
+                <Progress value={((stats.total_points || user.points || 0) / 500) * 100} className="h-4 bg-gray-200" />
                 <p className="text-xs text-gray-600 mt-3 text-center font-medium">
-                  {500 - (userStats?.total_points || user.points || 0)} punti al prossimo livello
+                  {500 - (stats.total_points || user.points || 0)} punti al prossimo livello
                 </p>
               </CardContent>
             </Card>

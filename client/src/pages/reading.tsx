@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,10 @@ import HistoricalContext from "@/components/historical-context";
 import AchievementsWidget from "@/components/achievements-widget";
 import NotesPanel from "@/components/notes-panel";
 import ChallengesPanel from "@/components/challenges-panel";
-import { chaptersData, quizzesData, glossaryData } from "@/data/chapters";
+import ReadingProgressIndicator from "@/components/reading-progress-indicator";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+import { glossaryData } from "@/data/chapters";
 
 export default function Reading() {
   const { chapterId } = useParams();
@@ -21,18 +24,119 @@ export default function Reading() {
   
   const [selectedTerm, setSelectedTerm] = useState<string>("");
   const [isTooltipOpen, setIsTooltipOpen] = useState(false);
-  const [readingProgress, setReadingProgress] = useState(85);
+  const [readingProgress, setReadingProgress] = useState(0);
+  const [timeSpent, setTimeSpent] = useState(0);
+  const timeStartRef = useRef<number>(Date.now());
+  const queryClient = useQueryClient();
 
   const currentChapterId = chapterId ? parseInt(chapterId) : 1;
-  const currentChapter = chaptersData.find(c => c.id === currentChapterId);
-  const currentQuizzes = quizzesData.filter(q => q.chapterId === currentChapterId);
+  
+  const { data: currentChapter, isLoading: chapterLoading } = useQuery({
+    queryKey: [`/api/chapters/${currentChapterId}`],
+    enabled: !!user && !!currentChapterId,
+  });
+
+  const { data: currentQuizzes, isLoading: quizzesLoading } = useQuery({
+    queryKey: [`/api/chapters/${currentChapterId}/quizzes`],
+    enabled: !!user && !!currentChapterId,
+  });
+
+  const { data: userProgress } = useQuery({
+    queryKey: [`/api/users/${user?.id}/progress`],
+    enabled: !!user,
+  });
+
+  const saveProgressMutation = useMutation({
+    mutationFn: (progressData: any) => 
+      apiRequest("POST", `/api/users/${user?.id}/progress`, progressData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user?.id}/progress`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/users/${user?.id}/stats`] });
+    },
+  });
 
   useEffect(() => {
     if (!user) {
       navigate("/auth");
       return;
     }
-  }, [user, navigate]);
+    
+    // Initialize reading progress from user data
+    const currentChapterProgress = (userProgress as any[])?.find(
+      (p: any) => p.chapterId === currentChapterId
+    );
+    if (currentChapterProgress) {
+      setReadingProgress(currentChapterProgress.readingProgress || 0);
+      setTimeSpent(currentChapterProgress.timeSpent || 0);
+    } else {
+      setReadingProgress(0);
+      setTimeSpent(0);
+    }
+    
+    timeStartRef.current = Date.now();
+  }, [user, navigate, currentChapterId, userProgress]);
+
+  // Auto-save progress every 30 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (user && currentChapterId && readingProgress > 0) {
+        const currentTime = Date.now();
+        const sessionTime = Math.floor((currentTime - timeStartRef.current) / 1000 / 60); // minutes
+        
+        saveProgressMutation.mutate({
+          chapterId: currentChapterId,
+          readingProgress: readingProgress,
+          timeSpent: sessionTime,
+          isCompleted: readingProgress >= 90,
+        });
+      }
+    }, 30000); // Save every 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user, currentChapterId, readingProgress, saveProgressMutation]);
+
+  // Track scroll position for reading progress
+  useEffect(() => {
+    const handleScroll = () => {
+      const windowHeight = window.innerHeight;
+      const documentHeight = document.documentElement.scrollHeight;
+      const scrollTop = window.scrollY;
+      
+      const scrollPercentage = Math.min(
+        100,
+        Math.max(0, (scrollTop / (documentHeight - windowHeight)) * 100)
+      );
+      
+      setReadingProgress(Math.floor(scrollPercentage));
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Save progress when leaving the page
+  useEffect(() => {
+    const beforeUnload = () => {
+      if (user && currentChapterId && readingProgress > 0) {
+        const currentTime = Date.now();
+        const sessionTime = Math.floor((currentTime - timeStartRef.current) / 1000 / 60);
+        
+        // Use navigator.sendBeacon for reliable save on page unload
+        navigator.sendBeacon(
+          `/api/users/${user.id}/progress`,
+          JSON.stringify({
+            chapterId: currentChapterId,
+            readingProgress: readingProgress,
+            timeSpent: sessionTime,
+            isCompleted: readingProgress >= 90,
+          })
+        );
+      }
+    };
+
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [user, currentChapterId, readingProgress]);
 
   const handleTooltipClick = (term: string) => {
     setSelectedTerm(term);
@@ -72,6 +176,26 @@ export default function Reading() {
   }, [currentChapter]);
 
   if (!user) {
+    return null;
+  }
+
+  if (chapterLoading || quizzesLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <Header />
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-full mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentChapter) {
     return (
       <div className="min-h-screen bg-warm-cream flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-literary-blue"></div>
@@ -194,6 +318,14 @@ export default function Reading() {
         isOpen={isTooltipOpen}
         onClose={() => setIsTooltipOpen(false)}
         term={selectedTerm}
+      />
+
+      {/* Reading Progress Indicator */}
+      <ReadingProgressIndicator 
+        progress={readingProgress}
+        timeSpent={timeSpent + Math.floor((Date.now() - timeStartRef.current) / 1000 / 60)}
+        isAutoSaving={saveProgressMutation.isPending}
+        chapterTitle={currentChapter?.title || `Capitolo ${currentChapterId}`}
       />
 
       {/* Mobile Navigation */}

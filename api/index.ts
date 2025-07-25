@@ -75,7 +75,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             firstName: newUser[0].first_name,
             lastName: newUser[0].last_name,
             points: newUser[0].points,
-            level: newUser[0].level
+            level: newUser[0].level,
+            role: 'student'
           }
         });
 
@@ -122,7 +123,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             firstName: user.first_name,
             lastName: user.last_name,
             points: user.points,
-            level: user.level
+            level: user.level,
+            role: user.role || 'student'
           }
         });
 
@@ -220,6 +222,119 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const user = await sql`SELECT points, level, created_at FROM users WHERE id = ${userId}`;
         if (user.length === 0) {
           return res.status(404).json({ message: "Utente non trovato" });
+        }
+
+        // Get progress data
+        const progress = await sql`
+          SELECT * FROM user_progress WHERE user_id = ${userId}
+        `;
+
+        // Get achievements count
+        const achievements = await sql`
+          SELECT COUNT(*) as count FROM user_achievements WHERE user_id = ${userId}
+        `;
+
+        // Calculate stats
+        const completedChapters = progress.filter((p: any) => p.is_completed).length;
+        const totalTimeSpent = progress.reduce((sum: number, p: any) => sum + (p.time_spent || 0), 0);
+        const daysSinceJoined = user[0].created_at ? 
+          Math.floor((Date.now() - new Date(user[0].created_at).getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+        return res.json({
+          total_points: user[0].points || 0,
+          level: user[0].level || "Novizio",
+          completed_chapters: completedChapters,
+          total_time_spent: totalTimeSpent,
+          achievement_count: achievements[0].count || 0,
+          days_since_joined: daysSinceJoined,
+          completed_quizzes: 0 // Will be enhanced later
+        });
+
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore recupero statistiche" });
+      }
+    }
+
+    // Save user progress
+    if (req.url?.startsWith('/api/users/') && req.url.includes('/progress') && req.method === 'POST') {
+      const urlParts = req.url.split('/');
+      const userId = urlParts[3];
+      const { chapterId, readingProgress, timeSpent, isCompleted } = req.body || {};
+      
+      if (!chapterId) {
+        return res.status(400).json({ message: "Chapter ID richiesto" });
+      }
+
+      try {
+        // Check if progress record exists
+        const existingProgress = await sql`
+          SELECT id FROM user_progress 
+          WHERE user_id = ${userId} AND chapter_id = ${chapterId}
+        `;
+
+        if (existingProgress.length > 0) {
+          // Update existing progress
+          await sql`
+            UPDATE user_progress 
+            SET 
+              reading_progress = ${readingProgress || 0},
+              time_spent = COALESCE(time_spent, 0) + ${timeSpent || 0},
+              is_completed = ${isCompleted || false},
+              last_read_at = NOW()
+            WHERE user_id = ${userId} AND chapter_id = ${chapterId}
+          `;
+        } else {
+          // Create new progress record
+          await sql`
+            INSERT INTO user_progress (user_id, chapter_id, reading_progress, time_spent, is_completed, last_read_at)
+            VALUES (${userId}, ${chapterId}, ${readingProgress || 0}, ${timeSpent || 0}, ${isCompleted || false}, NOW())
+          `;
+        }
+
+        return res.json({ 
+          message: "Progresso salvato con successo",
+          progress: {
+            userId: parseInt(userId),
+            chapterId: parseInt(chapterId),
+            readingProgress: readingProgress || 0,
+            timeSpent: timeSpent || 0,
+            isCompleted: isCompleted || false
+          }
+        });
+
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore salvataggio progresso" });
+      }
+    }
+
+    // Get glossary terms
+    if (req.url === '/api/glossary' && req.method === 'GET') {
+      try {
+        const terms = await sql`SELECT * FROM glossary_terms ORDER BY term`;
+        return res.json(terms);
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore recupero glossario" });
+      }
+    }
+
+    // Default 404 response
+    return res.status(404).json({ 
+      message: "Endpoint non trovato",
+      url: req.url,
+      method: req.method
+    });
+
+  } catch (error: any) {
+    console.error("Server error:", error);
+    return res.status(500).json({ 
+      message: "Errore interno del server",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
+  }
+}
         }
         
         // Get progress stats

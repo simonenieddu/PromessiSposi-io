@@ -86,7 +86,13 @@ export default function Header() {
                       <i className="fas fa-cog mr-3 text-purple-500"></i>
                       Admin
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={logout} className="p-3 hover:bg-red-50 rounded-lg text-red-600">
+                    <DropdownMenuItem 
+                      onClick={async () => {
+                        await logout();
+                        navigate("/");
+                      }} 
+                      className="p-3 hover:bg-red-50 rounded-lg text-red-600"
+                    >
                       <i className="fas fa-sign-out-alt mr-3"></i>
                       Logout
                     </DropdownMenuItem>

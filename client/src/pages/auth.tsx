@@ -35,10 +35,10 @@ export default function Auth() {
     
     try {
       await login(loginData.email, loginData.password);
-      navigate("/reading");
+      navigate("/dashboard");
       toast({
         title: "Accesso effettuato!",
-        description: "Benvenuto su PromessiSposi.io",
+        description: "Benvenuto nella tua dashboard personale",
       });
     } catch (error) {
       toast({
@@ -57,10 +57,10 @@ export default function Auth() {
     
     try {
       await register(registerData);
-      navigate("/reading");
+      navigate("/dashboard");
       toast({
         title: "Registrazione completata!",
-        description: "Benvenuto su PromessiSposi.io",
+        description: "Benvenuto nella tua dashboard personale",
       });
     } catch (error) {
       toast({

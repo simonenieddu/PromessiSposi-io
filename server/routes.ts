@@ -10,6 +10,7 @@ import session from "express-session";
 declare module 'express-session' {
   export interface SessionData {
     adminUser?: { id: number; username: string };
+    user?: { id: number; email: string };
   }
 }
 
@@ -99,9 +100,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         password: hashedPassword,
       });
 
+      // Set session
+      req.session.user = { id: user.id, email: user.email };
+
       res.json({ 
         message: "Registrazione completata con successo",
-        user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName }
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          firstName: user.firstName, 
+          lastName: user.lastName,
+          points: user.points || 0,
+          level: user.level || "Novizio",
+          role: user.role
+        }
       });
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -128,6 +140,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update last active
       await storage.updateUserLastActive(user.id);
 
+      // Set session
+      req.session.user = { id: user.id, email: user.email };
+
       res.json({ 
         message: "Login effettuato con successo",
         user: { 
@@ -136,7 +151,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           firstName: user.firstName, 
           lastName: user.lastName,
           points: user.points,
-          level: user.level 
+          level: user.level,
+          role: user.role
         }
       });
     } catch (error) {
@@ -190,6 +206,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ message: "Errore nell'aggiornamento dei progressi" });
     }
+  });
+
+  // User stats endpoint
+  app.get("/api/users/:userId/stats", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const user = await storage.getUser(userId);
+      const progress = await storage.getUserProgress(userId);
+      const achievements = await storage.getUserAchievements(userId);
+      
+      const stats = {
+        total_points: user?.points || 0,
+        level: user?.level || "Novizio",
+        completed_chapters: progress.filter(p => p.isCompleted).length,
+        total_time_spent: progress.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
+        achievement_count: achievements.length,
+        days_since_joined: user?.createdAt ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1000 * 60 * 60 * 24)) : 0,
+        completed_quizzes: 0 // Will be calculated based on quiz results
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Errore nel recupero delle statistiche" });
+    }
+  });
+
+  // User profile endpoint
+  app.get("/api/users/:userId/profile", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "Utente non trovato" });
+      }
+      
+      // Return user data without password
+      const { password, ...userData } = user;
+      res.json(userData);
+    } catch (error) {
+      res.status(500).json({ message: "Errore nel recupero del profilo" });
+    }
+  });
+
+  // Logout endpoint
+  app.post("/api/auth/logout", (req: any, res) => {
+    req.session.destroy((err: any) => {
+      if (err) {
+        return res.status(500).json({ message: "Errore durante il logout" });
+      }
+      res.json({ message: "Logout effettuato con successo" });
+    });
   });
 
   // Quiz routes

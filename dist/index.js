@@ -378,7 +378,8 @@ var users = pgTable("users", {
   studyReason: text("study_reason"),
   isEmailVerified: boolean("is_email_verified").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-  lastActiveAt: timestamp("last_active_at").defaultNow()
+  lastActiveAt: timestamp("last_active_at").defaultNow(),
+  role: varchar("role", { length: 20 }).default("student")
 });
 var chapters = pgTable("chapters", {
   id: serial("id").primaryKey(),
@@ -880,9 +881,18 @@ async function registerRoutes(app2) {
         ...userData,
         password: hashedPassword
       });
+      req.session.user = { id: user.id, email: user.email };
       res.json({
         message: "Registrazione completata con successo",
-        user: { id: user.id, email: user.email, firstName: user.firstName, lastName: user.lastName }
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          points: user.points || 0,
+          level: user.level || "Novizio",
+          role: user.role
+        }
       });
     } catch (error) {
       if (error instanceof z2.ZodError) {
@@ -903,6 +913,7 @@ async function registerRoutes(app2) {
         return res.status(401).json({ message: "Credenziali non valide" });
       }
       await storage.updateUserLastActive(user.id);
+      req.session.user = { id: user.id, email: user.email };
       res.json({
         message: "Login effettuato con successo",
         user: {
@@ -911,7 +922,8 @@ async function registerRoutes(app2) {
           firstName: user.firstName,
           lastName: user.lastName,
           points: user.points,
-          level: user.level
+          level: user.level,
+          role: user.role
         }
       });
     } catch (error) {
@@ -959,6 +971,48 @@ async function registerRoutes(app2) {
     } catch (error) {
       res.status(500).json({ message: "Errore nell'aggiornamento dei progressi" });
     }
+  });
+  app2.get("/api/users/:userId/stats", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const user = await storage.getUser(userId);
+      const progress = await storage.getUserProgress(userId);
+      const achievements3 = await storage.getUserAchievements(userId);
+      const stats = {
+        total_points: user?.points || 0,
+        level: user?.level || "Novizio",
+        completed_chapters: progress.filter((p) => p.isCompleted).length,
+        total_time_spent: progress.reduce((sum, p) => sum + (p.timeSpent || 0), 0),
+        achievement_count: achievements3.length,
+        days_since_joined: user?.createdAt ? Math.floor((Date.now() - new Date(user.createdAt).getTime()) / (1e3 * 60 * 60 * 24)) : 0,
+        completed_quizzes: 0
+        // Will be calculated based on quiz results
+      };
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Errore nel recupero delle statistiche" });
+    }
+  });
+  app2.get("/api/users/:userId/profile", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ message: "Utente non trovato" });
+      }
+      const { password, ...userData } = user;
+      res.json(userData);
+    } catch (error) {
+      res.status(500).json({ message: "Errore nel recupero del profilo" });
+    }
+  });
+  app2.post("/api/auth/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ message: "Errore durante il logout" });
+      }
+      res.json({ message: "Logout effettuato con successo" });
+    });
   });
   app2.get("/api/chapters/:chapterId/quizzes", async (req, res) => {
     try {

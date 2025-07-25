@@ -8,6 +8,13 @@ import {
   userAchievements, 
   glossaryTerms,
   adminUsers,
+  userNotes,
+  userLevels,
+  challenges,
+  userChallenges,
+  teacherClasses,
+  classStudents,
+  teacherAssignments,
   type User, 
   type InsertUser,
   type Chapter,
@@ -25,7 +32,20 @@ import {
   type GlossaryTerm,
   type InsertGlossaryTerm,
   type AdminUser,
-  type InsertAdminUser
+  type InsertAdminUser,
+  type UserNote,
+  type InsertUserNote,
+  type UserLevel,
+  type InsertUserLevel,
+  type Challenge,
+  type UserChallenge,
+  type InsertUserChallenge,
+  type TeacherClass,
+  type InsertTeacherClass,
+  type ClassStudent,
+  type InsertClassStudent,
+  type TeacherAssignment,
+  type InsertTeacherAssignment
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc } from "drizzle-orm";

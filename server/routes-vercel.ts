@@ -138,20 +138,14 @@ export async function registerRoutes(app: Express): Promise<void> {
     }
   });
 
-  // Basic API routes
-  app.get("/api/users", async (req, res) => {
-    try {
-      const users = await storage.getUsers();
-      res.json(users);
-    } catch (error) {
-      console.error("Errore recupero utenti:", error);
-      res.status(500).json({ message: "Errore interno del server" });
-    }
+  // Basic API routes (simplified for Vercel)
+  app.get("/api/test", async (req, res) => {
+    res.json({ message: "API funzionante", timestamp: new Date().toISOString() });
   });
 
   app.get("/api/chapters", async (req, res) => {
     try {
-      const chapters = await storage.getChapters();
+      const chapters = await storage.getAllChapters();
       res.json(chapters);
     } catch (error) {
       console.error("Errore recupero capitoli:", error);
@@ -161,7 +155,7 @@ export async function registerRoutes(app: Express): Promise<void> {
 
   app.get("/api/glossary", async (req, res) => {
     try {
-      const terms = await storage.getGlossaryTerms();
+      const terms = await storage.getAllGlossaryTerms();
       res.json(terms);
     } catch (error) {
       console.error("Errore recupero glossario:", error);

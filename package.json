@@ -2,24 +2,13 @@
   "name": "promessisposi-io",
   "version": "1.0.0",
   "engines": {
-    "node": "18"
+    "node": "20.x"
   },
   "scripts": {
-    "build": "vite build",
-    "vercel-build": "npm install && vite build"
+    "build": "cd client && npm run build"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
-    "@vercel/node": "^5.3.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.2",
-    "vite": "^5.4.14",
-    "typescript": "5.6.3",
-    "tailwindcss": "^3.4.17",
-    "autoprefixer": "^10.4.20",
-    "postcss": "^8.4.47"
+    "@vercel/node": "^5.3.6"
   }
 }

@@ -2,6 +2,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node';
 import { neon } from '@neondatabase/serverless';
 import { createHash } from 'crypto';
 
+// Neon Database Configuration for Vercel Node.js 20.x
 const sql = neon(process.env.DATABASE_URL!);
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -335,63 +336,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 }
-        }
-        
-        // Get progress stats
-        const progressStats = await sql`
-          SELECT 
-            COUNT(CASE WHEN is_completed = true THEN 1 END) as completed_chapters,
-            COUNT(CASE WHEN reading_progress = 100 THEN 1 END) as completed_quizzes
-          FROM user_progress 
-          WHERE user_id = ${userId}
-        `;
-        
-        const stats = {
-          total_points: user[0].points || 0,
-          current_level: user[0].level || 'Novizio',
-          completed_chapters: parseInt(progressStats[0].completed_chapters) || 0,
-          completed_quizzes: parseInt(progressStats[0].completed_quizzes) || 0,
-          days_since_joined: Math.floor((Date.now() - new Date(user[0].created_at).getTime()) / (1000 * 60 * 60 * 24))
-        };
-        
-        return res.json(stats);
-      } catch (dbError: any) {
-        console.error("Database error:", dbError);
-        return res.status(500).json({ message: "Errore recupero statistiche", error: dbError.message });
-      }
-    }
-
-    // Update reading progress
-    if (req.url?.includes('/progress') && req.method === 'POST') {
-      const { userId, chapterId, isCompleted, readingTime, quizScore } = req.body || {};
-      
-      try {
-        await sql`
-          INSERT INTO user_progress (user_id, chapter_id, is_completed, reading_time, quiz_score, updated_at)
-          VALUES (${userId}, ${chapterId}, ${isCompleted}, ${readingTime}, ${quizScore}, NOW())
-          ON CONFLICT (user_id, chapter_id) 
-          DO UPDATE SET 
-            is_completed = ${isCompleted},
-            reading_time = COALESCE(${readingTime}, user_progress.reading_time),
-            quiz_score = COALESCE(${quizScore}, user_progress.quiz_score),
-            updated_at = NOW()
-        `;
-        
-        return res.json({ message: "Progresso aggiornato" });
-      } catch (dbError: any) {
-        console.error("Database error:", dbError);
-        return res.status(500).json({ message: "Errore aggiornamento progresso" });
-      }
-    }
-    
-    return res.status(404).json({ 
-      message: "Endpoint non trovato",
-      url: req.url,
-      method: req.method
-    });
-    
-  } catch (error: any) {
-    console.error("Errore API:", error);
     return res.status(500).json({ 
       message: "Errore interno del server",
       error: error.message

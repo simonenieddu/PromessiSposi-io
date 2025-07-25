@@ -141,6 +141,65 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         return res.status(500).json({ message: "Errore recupero capitoli" });
       }
     }
+
+    // Get user progress
+    if (req.url?.startsWith('/api/users/') && req.url.includes('/progress') && req.method === 'GET') {
+      const urlParts = req.url.split('/');
+      const userId = urlParts[3];
+      
+      try {
+        const progress = await sql`
+          SELECT chapter_id, is_completed, completed_at, quiz_score
+          FROM user_progress 
+          WHERE user_id = ${userId}
+          ORDER BY chapter_id
+        `;
+        return res.json(progress);
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore recupero progressi" });
+      }
+    }
+
+    // Get user achievements
+    if (req.url?.startsWith('/api/users/') && req.url.includes('/achievements') && req.method === 'GET') {
+      const urlParts = req.url.split('/');
+      const userId = urlParts[3];
+      
+      try {
+        const achievements = await sql`
+          SELECT achievement_id, unlocked_at
+          FROM user_achievements 
+          WHERE user_id = ${userId}
+          ORDER BY unlocked_at DESC
+        `;
+        return res.json(achievements);
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore recupero traguardi" });
+      }
+    }
+
+    // Get user stats
+    if (req.url?.startsWith('/api/users/') && req.url.includes('/stats') && req.method === 'GET') {
+      const urlParts = req.url.split('/');
+      const userId = urlParts[3];
+      
+      try {
+        const stats = await sql`
+          SELECT 
+            (SELECT COUNT(*) FROM user_progress WHERE user_id = ${userId} AND is_completed = true) as completed_chapters,
+            (SELECT COUNT(*) FROM user_progress WHERE user_id = ${userId} AND quiz_score IS NOT NULL) as completed_quizzes,
+            (SELECT points FROM users WHERE id = ${userId}) as total_points,
+            (SELECT level FROM users WHERE id = ${userId}) as current_level,
+            (SELECT EXTRACT(days FROM (NOW() - created_at)) FROM users WHERE id = ${userId}) as days_since_joined
+        `;
+        return res.json(stats[0]);
+      } catch (dbError: any) {
+        console.error("Database error:", dbError);
+        return res.status(500).json({ message: "Errore recupero statistiche" });
+      }
+    }
     
     return res.status(404).json({ 
       message: "Endpoint non trovato",
